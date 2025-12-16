@@ -8,7 +8,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      # DÜZELTME BURADA: v2 -> v4 OLDU
+      - uses: actions/checkout@v4
 
       # 1. Gerekli kütüphaneleri ve Buildozer'ı kur
       - name: Build with Buildozer
@@ -18,7 +19,7 @@ jobs:
           command: buildozer android debug
           buildozer_version: master
 
-      # 2. APK dosyasını sisteme yükle (GÜNCELLENDİ: v4)
+      # 2. APK dosyasını sisteme yükle
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
