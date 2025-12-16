@@ -12,13 +12,14 @@ jobs:
 
       # 1. Gerekli kütüphaneleri ve Buildozer'ı kur
       - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action-v1@v1
+        # DÜZELTİLEN SATIR BURASI:
+        uses: ArtemSBulgakov/buildozer-action@v1
         id: buildozer
         with:
           command: buildozer android debug
           buildozer_version: master
 
-      # 2. APK dosyasını sisteme yükle (ki sen indirebilesin)
+      # 2. APK dosyasını sisteme yükle
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
