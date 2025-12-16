@@ -12,7 +12,7 @@ jobs:
 
       # 1. Gerekli kütüphaneleri ve Buildozer'ı kur
       - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action-v1
+        uses: ArtemSBulgakov/buildozer-action-v1@v1
         id: buildozer
         with:
           command: buildozer android debug
