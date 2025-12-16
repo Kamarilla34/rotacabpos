@@ -5,21 +5,31 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # En kararlı sürümü kullanıyoruz
 
     steps:
-      # DÜZELTME BURADA: v2 -> v4 OLDU
       - uses: actions/checkout@v4
 
-      # 1. Gerekli kütüphaneleri ve Buildozer'ı kur
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
+      # 1. Python ve Gerekli Araçları Kur
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          command: buildozer android debug
-          buildozer_version: master
+          python-version: '3.10'
 
-      # 2. APK dosyasını sisteme yükle
+      # 2. Buildozer ve Kütüphaneleri Yükle (Colab'daki gibi)
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libffi-dev libltdl-dev
+          pip install --upgrade pip
+          pip install buildozer cython==0.29.33
+
+      # 3. APK'yı Pişir (Soru sormasın diye 'yes' komutuyla)
+      - name: Build with Buildozer
+        run: |
+          yes | buildozer android debug
+
+      # 4. APK'yı Sisteme Yükle
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
