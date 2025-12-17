@@ -1,16 +1,22 @@
 import requests
+import urllib3
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.screenmanager import MDScreenManager
 from kivymd.uix.button import MDRaisedButton, MDIconButton, MDFlatButton
 from kivymd.uix.label import MDLabel
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.gridlayout import MDGridLayout
 from kivymd.uix.card import MDCard
+from kivymd.uix.dialog import MDDialog
 from kivymd.uix.list import MDList, TwoLineAvatarIconListItem, IconLeftWidget
 from kivymd.toast import toast
-from kivy.properties import StringProperty, NumericProperty
+from kivy.properties import StringProperty
+from kivy.core.window import Window
+
+# --- AYARLAR ---
+# Eski Android cihazlarda (General Mobile vb.) SSL hatasını yoksay
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # API URL'leri
 API_BASE_URL = "https://taksipos-api.onrender.com"
@@ -20,13 +26,91 @@ HISTORY_URL = f"{API_BASE_URL}/payment-history"
 
 KV = """
 MDScreenManager:
+    LoginScreen:
     MainScreen:
     HistoryScreen:
 
-# === ANA EKRAN (POS CİHAZI TASARIMI) ===
+# === 1. GİRİŞ EKRANI ===
+<LoginScreen>:
+    name: 'login'
+    md_bg_color: 0.1, 0.1, 0.1, 1
+
+    MDBoxLayout:
+        orientation: 'vertical'
+        padding: "20dp"
+        spacing: "20dp"
+        pos_hint: {"center_x": .5, "center_y": .6} # Klavye açılınca yukarı kaysın diye
+
+        # Logo veya Başlık
+        MDIconButton:
+            icon: "taxi"
+            user_font_size: "64sp"
+            theme_text_color: "Custom"
+            text_color: 1, 0.8, 0, 1 # Sarı
+            pos_hint: {"center_x": .5}
+
+        MDLabel:
+            text: "RotaCab POS"
+            halign: "center"
+            font_style: "H4"
+            theme_text_color: "Custom"
+            text_color: 1, 1, 1, 1
+            bold: True
+
+        Widget:
+            size_hint_y: None
+            height: "20dp"
+
+        # Giriş Alanları
+        MDTextField:
+            id: user_input
+            hint_text: "Kullanıcı Adı"
+            mode: "fill"
+            fill_color_normal: 0.2, 0.2, 0.2, 1
+            fill_color_focus: 0.3, 0.3, 0.3, 1
+            text_color_normal: 1, 1, 1, 1
+            text_color_focus: 1, 1, 1, 1
+            hint_text_color_normal: 0.7, 0.7, 0.7, 1
+            hint_text_color_focus: 1, 0.8, 0, 1
+            icon_right: "account"
+            icon_right_color: 1, 0.8, 0, 1
+
+        MDTextField:
+            id: pass_input
+            hint_text: "Şifre"
+            password: True
+            mode: "fill"
+            fill_color_normal: 0.2, 0.2, 0.2, 1
+            fill_color_focus: 0.3, 0.3, 0.3, 1
+            text_color_normal: 1, 1, 1, 1
+            text_color_focus: 1, 1, 1, 1
+            hint_text_color_normal: 0.7, 0.7, 0.7, 1
+            hint_text_color_focus: 1, 0.8, 0, 1
+            icon_right: "key"
+            icon_right_color: 1, 0.8, 0, 1
+
+        Widget:
+            size_hint_y: None
+            height: "10dp"
+
+        MDRaisedButton:
+            id: login_btn
+            text: "GİRİŞ YAP"
+            font_size: "18sp"
+            size_hint_x: 1
+            height: "50dp"
+            md_bg_color: 1, 0.6, 0, 1
+            text_color: 0, 0, 0, 1
+            bold: True
+            on_release: root.do_login()
+
+        Widget:
+            size_hint_y: 1 # Boşluk doldurucu
+
+# === 2. ANA POS EKRANI ===
 <MainScreen>:
     name: 'main'
-    md_bg_color: 0.1, 0.1, 0.1, 1  # Koyu Arka Plan
+    md_bg_color: 0.1, 0.1, 0.1, 1
 
     MDBoxLayout:
         orientation: 'vertical'
@@ -36,15 +120,16 @@ MDScreenManager:
         # --- ÜST BİLGİ PANELİ ---
         MDCard:
             size_hint_y: None
-            height: "80dp"
+            height: "70dp"
             md_bg_color: 0.2, 0.2, 0.2, 1
             radius: [10]
-            padding: "10dp"
+            padding: "5dp"
             
+            # Geçmiş Butonu
             MDIconButton:
                 icon: "history"
                 theme_text_color: "Custom"
-                text_color: 1, 0.8, 0, 1  # Sarı Renk
+                text_color: 1, 0.8, 0, 1
                 pos_hint: {"center_y": .5}
                 on_release: root.go_to_history()
 
@@ -59,21 +144,30 @@ MDScreenManager:
                     text_color: 1, 1, 1, 1
                     bold: True
                     font_style: "Subtitle1"
+                    font_size: "14sp"
                 
                 MDLabel:
                     text: "34 ROTA 01"
                     theme_text_color: "Custom"
-                    text_color: 1, 0.8, 0, 1  # Sarı Plaka Rengi
-                    font_style: "H6"
+                    text_color: 1, 0.8, 0, 1
+                    font_style: "Caption"
+            
+            # Çıkış Butonu
+            MDIconButton:
+                icon: "logout"
+                theme_text_color: "Custom"
+                text_color: 1, 0.2, 0.2, 1
+                pos_hint: {"center_y": .5}
+                on_release: root.logout()
 
-        # --- EKRAN (RAKAMLAR) ---
+        # --- RAKAM EKRANI ---
         MDCard:
             orientation: "vertical"
-            size_hint_y: 0.35
+            size_hint_y: 0.30
             md_bg_color: 0, 0, 0, 1
             radius: [5]
-            padding: "15dp"
-            line_color: 1, 0.8, 0, 0.5  # Sarı Çerçeve
+            padding: "10dp"
+            line_color: 1, 0.8, 0, 0.5
             
             MDLabel:
                 text: "Tutar Giriniz (TL)"
@@ -81,11 +175,10 @@ MDScreenManager:
                 text_color: 0.5, 0.5, 0.5, 1
                 font_style: "Caption"
             
-            # GİRİLEN TUTAR
             MDLabel:
                 text: root.display_amount + " ₺"
                 halign: "right"
-                font_style: "H3"
+                font_style: "H4"
                 theme_text_color: "Custom"
                 text_color: 1, 1, 1, 1
                 bold: True
@@ -95,48 +188,45 @@ MDScreenManager:
                 height: "1dp"
                 md_bg_color: 0.3, 0.3, 0.3, 1
 
-            # HESAPLAMALAR
             MDGridLayout:
                 cols: 2
                 size_hint_y: None
-                height: "60dp"
-                padding: [0, "10dp", 0, 0]
+                height: "50dp"
                 
                 MDLabel:
-                    text: "+ Hizmet Bedeli (%13):"
+                    text: "+ Hizmet (%13):"
                     theme_text_color: "Custom"
                     text_color: 0.7, 0.7, 0.7, 1
-                    font_style: "Body2"
+                    font_style: "Caption"
                 
                 MDLabel:
                     text: root.display_service_fee + " ₺"
                     halign: "right"
                     theme_text_color: "Custom"
                     text_color: 1, 0.8, 0, 1
-                    font_style: "Body2"
+                    font_style: "Caption"
                     
                 MDLabel:
                     text: "GENEL TOPLAM:"
                     theme_text_color: "Custom"
                     text_color: 1, 1, 1, 1
                     bold: True
-                    font_style: "Subtitle1"
+                    font_style: "Subtitle2"
                 
                 MDLabel:
                     text: root.display_total + " ₺"
                     halign: "right"
                     theme_text_color: "Custom"
-                    text_color: 0, 1, 0, 1  # Yeşil Toplam
+                    text_color: 0, 1, 0, 1
                     bold: True
-                    font_style: "H5"
+                    font_style: "H6"
 
-        # --- TUŞ TAKIMI (NUMPAD) ---
+        # --- TUŞ TAKIMI (Klavye Yok!) ---
         MDGridLayout:
             cols: 3
-            spacing: "10dp"
-            size_hint_y: 0.5
+            spacing: "8dp"
+            size_hint_y: 0.55
             
-            # Tuşlar (Fonksiyonel)
             NumpadButton:
                 text: "1"
                 on_release: root.add_digit("1")
@@ -171,7 +261,6 @@ MDScreenManager:
                 icon: "backspace"
                 theme_text_color: "Custom"
                 text_color: 1, 0.2, 0.2, 1
-                pos_hint: {"center_x": .5, "center_y": .5}
                 size_hint: 1, 1
                 on_release: root.remove_digit()
 
@@ -179,26 +268,24 @@ MDScreenManager:
                 text: "0"
                 on_release: root.add_digit("0")
 
-            # ÖDEME AL BUTONU (Yeşil)
             MDRaisedButton:
                 id: pay_btn
                 text: "KREDİ KARTI"
-                md_bg_color: 1, 0.6, 0, 1 # Turuncu/Sarı Kart Rengi
+                md_bg_color: 1, 0.6, 0, 1
                 text_color: 0, 0, 0, 1
                 size_hint: 1, 1
                 bold: True
                 font_size: "16sp"
                 on_release: root.process_payment()
 
-# Özel Tuş Tasarımı
 <NumpadButton@MDFlatButton>:
-    font_size: "24sp"
+    font_size: "26sp"
     size_hint: 1, 1
     theme_text_color: "Custom"
     text_color: 1, 1, 1, 1
-    md_bg_color: 0.2, 0.2, 0.2, 1
+    md_bg_color: 0.18, 0.18, 0.18, 1
 
-# === GEÇMİŞ İŞLEMLER EKRANI ===
+# === 3. GEÇMİŞ İŞLEMLER EKRANI ===
 <HistoryScreen>:
     name: 'history'
     on_enter: root.load_history()
@@ -207,7 +294,6 @@ MDScreenManager:
     MDBoxLayout:
         orientation: 'vertical'
 
-        # Toolbar
         MDBoxLayout:
             size_hint_y: None
             height: "56dp"
@@ -237,41 +323,56 @@ MDScreenManager:
                 id: history_list
 """
 
+# --- PYTHON KODLARI ---
+
+class LoginScreen(MDScreen):
+    def do_login(self):
+        username = self.ids.user_input.text
+        password = self.ids.pass_input.text
+
+        if not username or not password:
+            toast("Lütfen bilgileri doldurun.")
+            return
+
+        self.ids.login_btn.text = "GİRİŞ YAPILIYOR..."
+        self.ids.login_btn.disabled = True
+        
+        # API İSTEĞİ (SSL Kapalı)
+        try:
+            resp = requests.post(
+                LOGIN_URL, 
+                json={'username': username, 'password': password},
+                timeout=10,
+                verify=False # DİKKAT: Eski telefonlar için hayat kurtarıcı!
+            )
+
+            if resp.status_code == 200:
+                token = resp.json().get('access_token')
+                app = MDApp.get_running_app()
+                app.user_token = token # Token'ı hafızaya at
+                
+                toast("Giriş Başarılı! Hoşgeldiniz.")
+                self.manager.current = 'main' # Ana ekrana geç
+            else:
+                toast("Hatalı Kullanıcı Adı veya Şifre")
+        
+        except Exception as e:
+            toast(f"Bağlantı Hatası: {str(e)}")
+        
+        finally:
+            self.ids.login_btn.text = "GİRİŞ YAP"
+            self.ids.login_btn.disabled = False
+
+
 class MainScreen(MDScreen):
     display_amount = StringProperty("0")
     display_service_fee = StringProperty("0.00")
     display_total = StringProperty("0.00")
-    raw_amount_str = "" # Hesaplama için ham veri
-    
-    # Giriş Token'ı (Bunu daha sonra otomatik alabiliriz, şimdilik sabit veya login ile)
-    token = None 
-
-    def on_enter(self):
-        # Uygulama açılınca otomatik giriş yapmayı dene (Demo amaçlı)
-        self.login_silently()
-
-    def login_silently(self):
-        # Arka planda giriş yapıp token alır
-        try:
-            # Demo kullanıcı (Senin API'deki)
-            resp = requests.post(LOGIN_URL, json={'username': 'admin', 'password': 'password123'}, timeout=5)
-            if resp.status_code == 200:
-                self.token = resp.json().get('access_token')
-                toast("Sürücü Girişi Yapıldı 👍")
-            else:
-                toast("Giriş başarısız, interneti kontrol et.")
-        except:
-            pass
+    raw_amount_str = ""
 
     def add_digit(self, digit):
-        # 0 ise ve başta 0 varsa ekleme
-        if self.raw_amount_str == "" and digit == "0":
-            return
-        
-        # Maksimum karakter sınırı (ekran taşmasın)
-        if len(self.raw_amount_str) > 6:
-            return
-
+        if self.raw_amount_str == "" and digit == "0": return
+        if len(self.raw_amount_str) > 6: return
         self.raw_amount_str += digit
         self.calculate()
 
@@ -285,12 +386,10 @@ class MainScreen(MDScreen):
             self.display_service_fee = "0.00"
             self.display_total = "0.00"
             return
-
         try:
             amount = float(self.raw_amount_str)
             service_fee = amount * 0.13
             total = amount + service_fee
-
             self.display_amount = f"{amount:,.0f}"
             self.display_service_fee = f"{service_fee:,.2f}"
             self.display_total = f"{total:,.2f}"
@@ -298,43 +397,66 @@ class MainScreen(MDScreen):
             pass
 
     def process_payment(self):
+        app = MDApp.get_running_app()
+        token = app.user_token
+
         if not self.raw_amount_str or float(self.raw_amount_str) == 0:
             toast("Lütfen tutar giriniz!")
             return
         
-        if not self.token:
-            toast("Giriş yapılmamış! İnterneti kontrol edin.")
-            self.login_silently()
+        if not token:
+            toast("Oturum süresi dolmuş, lütfen tekrar giriş yapın.")
+            self.manager.current = 'login'
             return
 
-        # Toplam tutarı gönderiyoruz
         try:
             amount = float(self.raw_amount_str)
-            # DİKKAT: API'ye ham tutarı mı yoksa komisyonluyu mu göndereceksin?
-            # Buraya komisyonsuz tutarı yazıyorum, API hesaplıyorsa öyle kalsın.
+            self.ids.pay_btn.text = "İŞLENİYOR..."
+            self.ids.pay_btn.disabled = True
             
-            toast("Kart Okunuyor... ⏳")
-            headers = {'Authorization': f'Bearer {self.token}'}
+            headers = {'Authorization': f'Bearer {token}'}
             
-            # API İsteği
-            response = requests.post(PAYMENT_URL, json={'amount': amount}, headers=headers, timeout=15)
+            # API İsteği (SSL Kapalı)
+            response = requests.post(
+                PAYMENT_URL, 
+                json={'amount': amount}, 
+                headers=headers, 
+                timeout=15,
+                verify=False
+            )
             
             if response.status_code == 200:
-                toast("✅ ÖDEME BAŞARILI!")
+                self.show_success_dialog()
                 self.raw_amount_str = ""
-                self.calculate() # Ekranı sıfırla
+                self.calculate()
             else:
-                toast("❌ Hata: Kart Bakiyesi Yetersiz veya Red")
+                toast("❌ Kart Reddedildi!")
                 
         except Exception as e:
-            toast(f"Bağlantı Hatası: {str(e)}")
+            toast(f"Hata: {str(e)}")
+        finally:
+            self.ids.pay_btn.text = "KREDİ KARTI"
+            self.ids.pay_btn.disabled = False
+
+    def show_success_dialog(self):
+        dialog = MDDialog(
+            title="✅ İşlem Başarılı!",
+            text="Ödeme başarıyla alındı ve sisteme işlendi.",
+            buttons=[MDFlatButton(text="TAMAM", on_release=lambda x: dialog.dismiss())]
+        )
+        dialog.open()
 
     def go_to_history(self):
-        if not self.token:
-            toast("Önce giriş yapmalısınız.")
-            return
         self.manager.transition.direction = 'left'
         self.manager.current = 'history'
+
+    def logout(self):
+        app = MDApp.get_running_app()
+        app.user_token = None
+        self.manager.transition.direction = 'right'
+        self.manager.current = 'login'
+        toast("Çıkış yapıldı.")
+
 
 class HistoryScreen(MDScreen):
     def go_back(self):
@@ -343,14 +465,16 @@ class HistoryScreen(MDScreen):
 
     def load_history(self):
         self.ids.history_list.clear_widgets()
+        app = MDApp.get_running_app()
+        token = app.user_token
         
-        main_screen = self.manager.get_screen('main')
-        if not main_screen.token:
+        if not token:
             return
 
         try:
-            headers = {'Authorization': f'Bearer {main_screen.token}'}
-            response = requests.get(HISTORY_URL, headers=headers, timeout=10)
+            headers = {'Authorization': f'Bearer {token}'}
+            # SSL Hatasını Yoksay (Eski Telefonlar İçin)
+            response = requests.get(HISTORY_URL, headers=headers, timeout=10, verify=False)
             
             if response.status_code == 200:
                 data = response.json()
@@ -358,11 +482,11 @@ class HistoryScreen(MDScreen):
                 
                 if not transactions:
                     self.ids.history_list.add_widget(
-                        MDLabel(text="Henüz işlem yok.", halign="center", padding=[0, 50, 0, 0])
+                        MDLabel(text="Henüz işlem yok.", halign="center")
                     )
                     return
 
-                for tx in reversed(transactions): # En yeniler üstte
+                for tx in reversed(transactions):
                     amt = tx.get('amount', 0)
                     status = tx.get('status', 'unknown')
                     date_str = tx.get('created_at', '')[:16].replace('T', ' ')
@@ -370,22 +494,22 @@ class HistoryScreen(MDScreen):
                     icon = "check-circle" if status == "succeeded" else "close-circle"
                     color = (0, 0.7, 0, 1) if status == "succeeded" else (0.8, 0.2, 0.2, 1)
                     
-                    # Liste Elemanı
                     item = TwoLineAvatarIconListItem(
                         text=f"{amt} TL",
                         secondary_text=f"{date_str} - {status}"
                     )
-                    # İkon
                     item.add_widget(IconLeftWidget(icon=icon, theme_text_color="Custom", text_color=color))
                     self.ids.history_list.add_widget(item)
 
         except Exception as e:
-            toast(f"Geçmiş yüklenemedi: {str(e)}")
+            toast("Geçmiş yüklenemedi.")
 
 class TaksiPosApp(MDApp):
+    user_token = None # Token'ı burada saklayacağız
+
     def build(self):
-        self.theme_cls.theme_style = "Dark" # Komple Siyah Tema
-        self.theme_cls.primary_palette = "Amber" # Sarı vurgular
+        self.theme_cls.theme_style = "Dark"
+        self.theme_cls.primary_palette = "Amber"
         return Builder.load_string(KV)
 
 if __name__ == '__main__':
