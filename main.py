@@ -11,10 +11,11 @@ from kivymd.uix.card import MDCard
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.list import MDList, TwoLineAvatarIconListItem, IconLeftWidget
 from kivymd.toast import toast
-from kivy.properties import StringProperty, ListProperty
+from kivy.properties import StringProperty
 from kivy.clock import Clock
 
 # --- AYARLAR ---
+# Eski Android cihazlarda (General Mobile vb.) SSL hatasını engelle
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # API URL'leri
@@ -29,7 +30,7 @@ MDScreenManager:
     MainScreen:
     HistoryScreen:
 
-# === 1. GİRİŞ EKRANI (SÜRÜCÜ ÖZEL TASARIM) ===
+# === 1. GİRİŞ EKRANI (SÜRÜCÜ İÇİN ÖZEL) ===
 <LoginScreen>:
     name: 'login'
     md_bg_color: 0.1, 0.1, 0.1, 1
@@ -59,23 +60,23 @@ MDScreenManager:
                 text_color: 1, 1, 1, 1
                 bold: True
 
-        # --- GİRİŞ KUTULARI (Fake Input - Klavye Açmaz) ---
+        # --- GİRİŞ KUTULARI (Klavye Açmaz) ---
         MDBoxLayout:
             orientation: 'vertical'
             size_hint_y: 0.25
-            spacing: "10dp"
+            spacing: "15dp"
             padding: ["20dp", 0, "20dp", 0]
 
             # TC KİMLİK KUTUSU
             MDCard:
                 id: tc_card
                 size_hint_y: None
-                height: "50dp"
+                height: "55dp"
                 md_bg_color: 0.2, 0.2, 0.2, 1
                 radius: [8]
                 padding: "10dp"
-                line_color: (1, 0.8, 0, 1) if root.active_field == 'tc' else (0.4, 0.4, 0.4, 1)
-                line_width: 1.5
+                line_color: (1, 0.8, 0, 1) if root.active_field == 'tc' else (0.4, 0.4, 0.4, 0)
+                line_width: 1.2
                 on_release: root.set_active('tc')
 
                 MDIconButton:
@@ -89,18 +90,19 @@ MDScreenManager:
                     theme_text_color: "Custom"
                     text_color: (1, 1, 1, 1) if root.tc_text else (0.5, 0.5, 0.5, 1)
                     font_style: "H6"
+                    bold: True
                     valign: "center"
 
             # PIN KUTUSU
             MDCard:
                 id: pin_card
                 size_hint_y: None
-                height: "50dp"
+                height: "55dp"
                 md_bg_color: 0.2, 0.2, 0.2, 1
                 radius: [8]
                 padding: "10dp"
-                line_color: (1, 0.8, 0, 1) if root.active_field == 'pin' else (0.4, 0.4, 0.4, 1)
-                line_width: 1.5
+                line_color: (1, 0.8, 0, 1) if root.active_field == 'pin' else (0.4, 0.4, 0.4, 0)
+                line_width: 1.2
                 on_release: root.set_active('pin')
 
                 MDIconButton:
@@ -110,13 +112,13 @@ MDScreenManager:
                     pos_hint: {"center_y": .5}
                 
                 MDLabel:
-                    text: ("*" * len(root.pin_text)) if root.pin_text else "Şoför Şifresi"
+                    text: ("● " * len(root.pin_text)) if root.pin_text else "Şoför Şifresi"
                     theme_text_color: "Custom"
                     text_color: (1, 1, 1, 1) if root.pin_text else (0.5, 0.5, 0.5, 1)
                     font_style: "H6"
                     valign: "center"
 
-        # --- NUMARATÖR (KLAVYE YOK) ---
+        # --- NUMARATÖR ---
         MDGridLayout:
             cols: 3
             spacing: "8dp"
@@ -164,7 +166,7 @@ MDScreenManager:
                 text: "0"
                 on_release: root.add_digit("0")
 
-            # GİRİŞ BUTONU (YEŞİL)
+            # GİRİŞ BUTONU
             MDRaisedButton:
                 id: login_btn
                 text: "GİRİŞ"
@@ -402,7 +404,7 @@ MDScreenManager:
 class LoginScreen(MDScreen):
     tc_text = StringProperty("")
     pin_text = StringProperty("")
-    active_field = StringProperty("tc") # Başlangıçta TC aktif
+    active_field = StringProperty("tc")
 
     def set_active(self, field_name):
         self.active_field = field_name
@@ -411,11 +413,10 @@ class LoginScreen(MDScreen):
         if self.active_field == 'tc':
             if len(self.tc_text) < 11:
                 self.tc_text += digit
-                # 11 hane dolunca otomatik PIN'e geç
                 if len(self.tc_text) == 11:
                     self.active_field = 'pin'
         else:
-            if len(self.pin_text) < 6: # Şifre max 6 hane olsun
+            if len(self.pin_text) < 6:
                 self.pin_text += digit
 
     def remove_digit(self):
@@ -425,11 +426,10 @@ class LoginScreen(MDScreen):
             if len(self.pin_text) > 0:
                 self.pin_text = self.pin_text[:-1]
             else:
-                # PIN boşsa silmeye basınca TC'ye geri dön
                 self.active_field = 'tc'
 
     def do_login(self):
-        # API'ye 'username' olarak TC, 'password' olarak PIN gönderiyoruz
+        # DEDEKTİF MODU: Gerçek hatayı görmek için
         username = self.tc_text
         password = self.pin_text
 
@@ -437,16 +437,15 @@ class LoginScreen(MDScreen):
             toast("Lütfen bilgileri doldurun.")
             return
 
-        self.ids.login_btn.text = "GİRİŞ YAPILIYOR..."
+        self.ids.login_btn.text = "KONTROL EDİLİYOR..."
         self.ids.login_btn.disabled = True
         
         try:
-            # GÜVENLİK AYARI: verify=False (Eski telefonlar için)
             resp = requests.post(
                 LOGIN_URL, 
                 json={'username': username, 'password': password},
                 timeout=10,
-                verify=False 
+                verify=False
             )
 
             if resp.status_code == 200:
@@ -455,15 +454,19 @@ class LoginScreen(MDScreen):
                 app.user_token = token
                 self.manager.current = 'main'
                 toast("Başarılı! ✅")
-                # Giriş başarılı olunca alanları temizle
                 self.tc_text = ""
                 self.pin_text = ""
                 self.active_field = "tc"
             else:
-                toast("Hata: TC veya Şifre Yanlış!")
+                # KRİTİK DEĞİŞİKLİK: Sunucudan gelen hatayı okuyoruz
+                try:
+                    hata_detayi = resp.json().get('msg') or resp.json().get('message') or resp.text
+                    toast(f"Sunucu Reddetti: {hata_detayi}")
+                except:
+                    toast(f"Hata Kodu: {resp.status_code}")
         
         except Exception as e:
-            toast(f"Hata: {str(e)[:40]}")
+            toast(f"Bağlantı Sorunu: {str(e)[:40]}")
         
         finally:
             self.ids.login_btn.text = "GİRİŞ"
