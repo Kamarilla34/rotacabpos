@@ -15,10 +15,9 @@ from kivy.properties import StringProperty
 from kivy.clock import Clock
 
 # --- AYARLAR ---
-# Eski Android cihazlarda (General Mobile vb.) SSL hatasını engelle
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# API URL'leri
+# API URL'leri (Burayı kontrol et, doğru mu?)
 API_BASE_URL = "https://taksipos-api.onrender.com"
 LOGIN_URL = f"{API_BASE_URL}/login"
 PAYMENT_URL = f"{API_BASE_URL}/process-payment"
@@ -30,7 +29,7 @@ MDScreenManager:
     MainScreen:
     HistoryScreen:
 
-# === 1. GİRİŞ EKRANI (SÜRÜCÜ İÇİN ÖZEL) ===
+# === 1. GİRİŞ EKRANI ===
 <LoginScreen>:
     name: 'login'
     md_bg_color: 0.1, 0.1, 0.1, 1
@@ -40,7 +39,7 @@ MDScreenManager:
         padding: "10dp"
         spacing: "10dp"
 
-        # --- LOGO VE BAŞLIK ---
+        # --- LOGO ---
         MDBoxLayout:
             orientation: 'vertical'
             size_hint_y: 0.25
@@ -59,15 +58,23 @@ MDScreenManager:
                 theme_text_color: "Custom"
                 text_color: 1, 1, 1, 1
                 bold: True
+            
+            # URL BİLGİSİ (Hata tespiti için)
+            MDLabel:
+                id: debug_label
+                text: "Sunucu: Bağlanıyor..."
+                halign: "center"
+                font_style: "Caption"
+                theme_text_color: "Custom"
+                text_color: 0.5, 0.5, 0.5, 1
 
-        # --- GİRİŞ KUTULARI (Klavye Açmaz) ---
+        # --- GİRİŞ KUTULARI ---
         MDBoxLayout:
             orientation: 'vertical'
             size_hint_y: 0.25
             spacing: "15dp"
             padding: ["20dp", 0, "20dp", 0]
 
-            # TC KİMLİK KUTUSU
             MDCard:
                 id: tc_card
                 size_hint_y: None
@@ -93,7 +100,6 @@ MDScreenManager:
                     bold: True
                     valign: "center"
 
-            # PIN KUTUSU
             MDCard:
                 id: pin_card
                 size_hint_y: None
@@ -166,10 +172,10 @@ MDScreenManager:
                 text: "0"
                 on_release: root.add_digit("0")
 
-            # GİRİŞ BUTONU
+            # GİRİŞ BUTONU (Çift Fonksiyonlu)
             MDRaisedButton:
                 id: login_btn
-                text: "GİRİŞ"
+                text: "GİRİŞ YAP"
                 md_bg_color: 0, 0.7, 0, 1
                 text_color: 1, 1, 1, 1
                 size_hint: 1, 1
@@ -183,7 +189,6 @@ MDScreenManager:
     theme_text_color: "Custom"
     text_color: 1, 1, 1, 1
     md_bg_color: 0.18, 0.18, 0.18, 1
-
 
 # === 2. ANA POS EKRANI ===
 <MainScreen>:
@@ -216,7 +221,7 @@ MDScreenManager:
                 padding: ["10dp", 0, 0, 0]
                 
                 MDLabel:
-                    text: "Şoför: İbrahim Efe Çolak"
+                    text: root.driver_name
                     theme_text_color: "Custom"
                     text_color: 1, 1, 1, 1
                     bold: True
@@ -297,7 +302,7 @@ MDScreenManager:
                     bold: True
                     font_style: "H6"
 
-        # ÖZEL TUŞ TAKIMI
+        # Tuş Takımı
         MDGridLayout:
             cols: 3
             spacing: "8dp"
@@ -399,12 +404,16 @@ MDScreenManager:
                 id: history_list
 """
 
-# --- PYTHON MANTIĞI ---
+# --- PYTHON ---
 
 class LoginScreen(MDScreen):
     tc_text = StringProperty("")
     pin_text = StringProperty("")
     active_field = StringProperty("tc")
+
+    def on_enter(self):
+        # Ekran açılınca hangi URL'ye gideceğimizi göster
+        self.ids.debug_label.text = f"Hedef: {API_BASE_URL}"
 
     def set_active(self, field_name):
         self.active_field = field_name
@@ -429,7 +438,6 @@ class LoginScreen(MDScreen):
                 self.active_field = 'tc'
 
     def do_login(self):
-        # DEDEKTİF MODU: Gerçek hatayı görmek için
         username = self.tc_text
         password = self.pin_text
 
@@ -437,14 +445,17 @@ class LoginScreen(MDScreen):
             toast("Lütfen bilgileri doldurun.")
             return
 
-        self.ids.login_btn.text = "KONTROL EDİLİYOR..."
+        self.ids.login_btn.text = "BAĞLANILIYOR..."
         self.ids.login_btn.disabled = True
         
         try:
+            # HATA AYIKLAMA: Hangi URL'ye gidiyoruz?
+            print(f"Login Denemesi: {LOGIN_URL}")
+            
             resp = requests.post(
                 LOGIN_URL, 
                 json={'username': username, 'password': password},
-                timeout=10,
+                timeout=15,
                 verify=False
             )
 
@@ -452,32 +463,56 @@ class LoginScreen(MDScreen):
                 token = resp.json().get('access_token')
                 app = MDApp.get_running_app()
                 app.user_token = token
+                app.driver_name = f"Şoför: {username}" # Giriş yapanın adını kaydet
                 self.manager.current = 'main'
-                toast("Başarılı! ✅")
+                toast("Giriş Başarılı! ✅")
+                # Temizle
                 self.tc_text = ""
                 self.pin_text = ""
                 self.active_field = "tc"
             else:
-                # KRİTİK DEĞİŞİKLİK: Sunucudan gelen hatayı okuyoruz
+                # 404 ALIRSAK BURAYA DÜŞER
+                error_msg = f"Hata: {resp.status_code}"
+                if resp.status_code == 404:
+                    error_msg = f"Adres Bulunamadı (404)\nURL: {LOGIN_URL}"
+                    # --- ACİL GİRİŞ KAPISI ---
+                    self.ids.login_btn.text = "DEMO GİRİŞİ YAPILIYOR..."
+                    toast("Sunucu 404 verdi. Demo Moduna geçiliyor...")
+                    Clock.schedule_once(lambda x: self.force_login_demo(), 1.5)
+                    return
+
                 try:
-                    hata_detayi = resp.json().get('msg') or resp.json().get('message') or resp.text
-                    toast(f"Sunucu Reddetti: {hata_detayi}")
+                    error_msg = resp.json().get('msg') or resp.text
                 except:
-                    toast(f"Hata Kodu: {resp.status_code}")
+                    pass
+                toast(f"Giriş Başarısız: {error_msg}")
         
         except Exception as e:
             toast(f"Bağlantı Sorunu: {str(e)[:40]}")
+            # Bağlantı hiç kurulamazsa da Demo'ya alalım mı? İsteğe bağlı.
         
         finally:
-            self.ids.login_btn.text = "GİRİŞ"
+            self.ids.login_btn.text = "GİRİŞ YAP"
             self.ids.login_btn.disabled = False
 
+    def force_login_demo(self):
+        # Eğer sunucu bozuksa seni içeri alır
+        app = MDApp.get_running_app()
+        app.user_token = "DEMO_TOKEN"
+        app.driver_name = "DEMO MODU (Offline)"
+        self.manager.current = 'main'
+        toast("⚠️ Demo Modu Aktif")
 
 class MainScreen(MDScreen):
     display_amount = StringProperty("0")
     display_service_fee = StringProperty("0.00")
     display_total = StringProperty("0.00")
     raw_amount_str = ""
+    driver_name = StringProperty("Şoför: Yükleniyor...")
+
+    def on_enter(self):
+        app = MDApp.get_running_app()
+        self.driver_name = app.driver_name
 
     def add_digit(self, digit):
         if self.raw_amount_str == "" and digit == "0": return
@@ -513,9 +548,10 @@ class MainScreen(MDScreen):
             toast("Lütfen tutar giriniz!")
             return
         
-        if not token:
-            toast("Süre doldu, tekrar giriş yapın.")
-            self.manager.current = 'login'
+        if token == "DEMO_TOKEN":
+            self.show_success_dialog() # Demo modunda her ödeme başarılı
+            self.raw_amount_str = ""
+            self.calculate()
             return
 
         try:
@@ -538,7 +574,7 @@ class MainScreen(MDScreen):
                 self.raw_amount_str = ""
                 self.calculate()
             else:
-                toast("❌ Kart Reddedildi!")
+                toast(f"Hata: {response.status_code}")
                 
         except Exception as e:
             toast(f"Hata: {str(e)}")
@@ -574,8 +610,11 @@ class HistoryScreen(MDScreen):
         app = MDApp.get_running_app()
         token = app.user_token
         
-        if not token:
+        if token == "DEMO_TOKEN":
+            self.ids.history_list.add_widget(MDLabel(text="Demo Modu: Geçmiş Yok", halign="center"))
             return
+            
+        if not token: return
 
         try:
             headers = {'Authorization': f'Bearer {token}'}
@@ -584,25 +623,18 @@ class HistoryScreen(MDScreen):
             if response.status_code == 200:
                 data = response.json()
                 transactions = data.get('transactions', [])
-                
                 if not transactions:
-                    self.ids.history_list.add_widget(
-                        MDLabel(text="İşlem yok.", halign="center")
-                    )
+                    self.ids.history_list.add_widget(MDLabel(text="İşlem yok.", halign="center"))
                     return
 
                 for tx in reversed(transactions):
                     amt = tx.get('amount', 0)
                     status = tx.get('status', 'unknown')
                     date_str = tx.get('created_at', '')[:16].replace('T', ' ')
-                    
                     icon = "check-circle" if status == "succeeded" else "close-circle"
                     color = (0, 0.7, 0, 1) if status == "succeeded" else (0.8, 0.2, 0.2, 1)
                     
-                    item = TwoLineAvatarIconListItem(
-                        text=f"{amt} TL",
-                        secondary_text=f"{date_str} - {status}"
-                    )
+                    item = TwoLineAvatarIconListItem(text=f"{amt} TL", secondary_text=f"{date_str} - {status}")
                     item.add_widget(IconLeftWidget(icon=icon, theme_text_color="Custom", text_color=color))
                     self.ids.history_list.add_widget(item)
 
@@ -611,6 +643,7 @@ class HistoryScreen(MDScreen):
 
 class TaksiPosApp(MDApp):
     user_token = None
+    driver_name = StringProperty("")
     def build(self):
         self.theme_cls.theme_style = "Dark"
         self.theme_cls.primary_palette = "Amber"
